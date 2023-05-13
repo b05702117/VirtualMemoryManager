@@ -49,6 +49,7 @@ unsigned int select_victim_frame();
 void handle_page_fault(unsigned int page_number);
 int tlb_lookup(unsigned int page_number, unsigned int* frame_number);
 void tlb_update(unsigned int page_number, unsigned int frame_number);
+void display_statistic();
 
 int main(int argc, char* argv[]) {
     if (init(argc, argv) != 0) {
@@ -65,8 +66,11 @@ int main(int argc, char* argv[]) {
         logical_address = get_logical_address(logical_address); // only reserve the rightmost PAGE_BITS + OFFSET_BITS ass the logical address
         physical_address = translate_address(logical_address);
         value = memory[physical_address]; // access the memory by physical address
+        total_access++;
         printf("logical address: %u, physical address: %u, value: %d\n", logical_address, physical_address, value);
     }
+
+    display_statistic();
 
     close_files();
 
@@ -158,6 +162,7 @@ void handle_page_fault(unsigned int page_number) {
     // load the page from the backing store
     fseek(backing_storage, page_number * PAGE_SIZE, SEEK_SET); // seek to the offset in the backing store
     fread(memory + (page_table[page_number].frame * PAGE_SIZE), sizeof(unsigned char), PAGE_SIZE, backing_storage); // read the page from the backing store and load it into the memory 
+    page_fault_cnt++;
 }
 
 unsigned int translate_address(unsigned int logical_address) {
@@ -187,6 +192,7 @@ int tlb_lookup(unsigned int page_number, unsigned int* frame_number) {
             return 1; // TLB hit
         }
     }
+    tlb_miss_cnt++;
     return 0; // TLB miss
 }
 
@@ -195,4 +201,14 @@ void tlb_update(unsigned int page_number, unsigned int frame_number) {
     int victim = next_avaliable_tlb % TLB_SIZE;
     tlb_table[victim].page = page_number;
     tlb_table[victim].frame = frame_number;
+}
+
+void display_statistic() {
+    float page_fault_rate, tlb_hit_rate;
+    
+    page_fault_rate = (page_fault_cnt / total_access) * 100;
+    tlb_hit_rate = (1 - (tlb_miss_cnt / total_access)) * 100;
+
+    printf("Page fault rate: %.2f%%\n", page_fault_rate);
+    printf("TLB hit rate: %.2f%%\n", tlb_hit_rate);
 }
