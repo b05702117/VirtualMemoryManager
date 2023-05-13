@@ -9,6 +9,7 @@
 
 #define PAGE_SIZE (1 << OFFSET_BITS) // page size = 2^OFFSET_BITS
 #define FRAME_SIZE PAGE_SIZE
+#define TLB_SIZE 16
 
 #define NUM_OF_PAGES (1 << PAGE_BITS)
 #define NUM_OF_FRAMES (1 << FRAME_BITS)
@@ -22,12 +23,20 @@ typedef struct {
     int frame; // Frame number where the page is soted in physical memory
 } PageTableEntry;
 
+typedef struct {
+    int page;
+    int frame;
+} TLBEntry;
+
 // Global variables
 unsigned char memory[MEMORY_SIZE];
 PageTableEntry page_table[NUM_OF_PAGES];
 unsigned int next_avaliable_frame; // simulate a FIFO queue to maintain the free frames
+TLBEntry tlb_table[TLB_SIZE];
+unsigned int next_avaliable_tlb; // simulate a FIFO queue to maintain the TLB table 
 FILE* backing_storage;
 FILE* addresses_file;
+int total_access, page_fault_cnt, tlb_miss_cnt;
 
 int init(int argc, char* argv[]);
 void close_files();
@@ -38,6 +47,8 @@ unsigned int get_physical_address(unsigned int frame, unsigned int page_offset);
 unsigned int translate_address(unsigned int logical_address);
 unsigned int select_victim_frame();
 void handle_page_fault(unsigned int page_number);
+int tlb_lookup(unsigned int page_number, unsigned int* frame_number);
+void tlb_update(unsigned int page_number, unsigned int frame_number);
 
 int main(int argc, char* argv[]) {
     if (init(argc, argv) != 0) {
@@ -87,6 +98,12 @@ int init(int argc, char* argv[]) {
     for (int i = 0; i < NUM_OF_PAGES; i++) {
         page_table[i].valid = 0;
         page_table[i].frame = -1;
+    }
+
+    // initialize tlb_table
+    for (int i = 0; i < TLB_SIZE; i++) {
+        tlb_table[i].page = -1;
+        tlb_table[i].frame = -1;
     }
 
     return 0;
@@ -149,13 +166,33 @@ unsigned int translate_address(unsigned int logical_address) {
     page_number = get_page_number(logical_address);
     page_offset = get_page_offset(logical_address);
 
-    // Check if the page is in physical
-    if (!page_table[page_number].valid) {
-        // simulate the OS operation after page table send a trap to it
-        printf("handle page fault: %d\n", page_number);
-        handle_page_fault(page_number);
+    if (!tlb_lookup(page_number, &frame_number)) { // TLB miss
+        // Check if the page is in physical
+        if (!page_table[page_number].valid) {
+            // simulate the OS operation after page table send a trap to it
+            // printf("handle page fault: %d\n", page_number);
+            handle_page_fault(page_number);
+        }
+        frame_number = page_table[page_number].frame;
+        tlb_update(page_number, frame_number);
     }
-    frame_number = page_table[page_number].frame;
 
     return get_physical_address(frame_number, page_offset);
+}
+
+int tlb_lookup(unsigned int page_number, unsigned int* frame_number) {
+    for (int i = 0; i < TLB_SIZE; i++) {
+        if (tlb_table[i].page == page_number) {
+            *frame_number = tlb_table[i].frame;
+            return 1; // TLB hit
+        }
+    }
+    return 0; // TLB miss
+}
+
+void tlb_update(unsigned int page_number, unsigned int frame_number) {
+    // Replace the least recently used TLB
+    int victim = next_avaliable_tlb % TLB_SIZE;
+    tlb_table[victim].page = page_number;
+    tlb_table[victim].frame = frame_number;
 }
