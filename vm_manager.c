@@ -175,7 +175,7 @@ unsigned int translate_address(unsigned int logical_address) {
         // Check if the page is in physical
         if (!page_table[page_number].valid) {
             // simulate the OS operation after page table send a trap to it
-            printf("handle page fault: %d\n", page_number);
+            // printf("handle page fault: %d\n", page_number);
             handle_page_fault(page_number);
         }
         frame_number = page_table[page_number].frame;
