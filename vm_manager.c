@@ -175,7 +175,7 @@ unsigned int translate_address(unsigned int logical_address) {
         // Check if the page is in physical
         if (!page_table[page_number].valid) {
             // simulate the OS operation after page table send a trap to it
-            // printf("handle page fault: %d\n", page_number);
+            printf("handle page fault: %d\n", page_number);
             handle_page_fault(page_number);
         }
         frame_number = page_table[page_number].frame;
@@ -199,6 +199,7 @@ int tlb_lookup(unsigned int page_number, unsigned int* frame_number) {
 void tlb_update(unsigned int page_number, unsigned int frame_number) {
     // Replace the least recently used TLB
     int victim = next_avaliable_tlb % TLB_SIZE;
+    next_avaliable_tlb = (next_avaliable_tlb + 1) % TLB_SIZE;
     tlb_table[victim].page = page_number;
     tlb_table[victim].frame = frame_number;
 }
@@ -206,9 +207,12 @@ void tlb_update(unsigned int page_number, unsigned int frame_number) {
 void display_statistic() {
     float page_fault_rate, tlb_hit_rate;
     
-    page_fault_rate = (page_fault_cnt / total_access) * 100;
-    tlb_hit_rate = (1 - (tlb_miss_cnt / total_access)) * 100;
+    page_fault_rate = ((float)page_fault_cnt / total_access) * 100;
+    tlb_hit_rate = ((float)(total_access - tlb_miss_cnt) / total_access) * 100;
 
+    // printf("total access: %d\n", total_access);
+    // printf("page fault cnt: %d\n", page_fault_cnt);
+    // printf("TLB miss cnt: %d\n", tlb_miss_cnt);
     printf("Page fault rate: %.2f%%\n", page_fault_rate);
     printf("TLB hit rate: %.2f%%\n", tlb_hit_rate);
 }
